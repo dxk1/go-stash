@@ -6,7 +6,6 @@
 package filter
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -24,9 +23,10 @@ func TimestampFilter(field string) FilterFunc {
 		t := time.Unix(int64(timestamp), 0)
 		// 将 time.Time 类型转换为格式化的日期和时间字符串
 		// 注意：这里设置了毫秒为 343，因为您提供的示例中包含了毫秒
-		formattedTime := fmt.Sprintf("%s.%03d", t.Format("2006-01-02 15:04:05"), 343)
+		//formattedTime := fmt.Sprintf("%s.%03d", t.Format("2006-01-02 15:04:05"), 343)
 
-		m["@timestamp"] = formattedTime
+		m["@timestamp"] = t
+		m["@timestamp0"] = t
 		return m
 	}
 }
