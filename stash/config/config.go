@@ -26,7 +26,7 @@ type (
 	}
 
 	Filter struct {
-		Action     string      `json:",options=drop|remove_field|transfer"`
+		Action     string      `json:",options=drop|remove_field|transfer|timestamp"`
 		Conditions []Condition `json:",optional"`
 		Fields     []string    `json:",optional"`
 		Field      string      `json:",optional"`

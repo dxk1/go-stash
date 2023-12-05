@@ -6,6 +6,7 @@ const (
 	filterDrop         = "drop"
 	filterRemoveFields = "remove_field"
 	filterTransfer     = "transfer"
+	filterTimestamp    = "timestamp"
 	opAnd              = "and"
 	opOr               = "or"
 	typeContains       = "contains"
@@ -25,6 +26,8 @@ func CreateFilters(p config.Cluster) []FilterFunc {
 			filters = append(filters, RemoveFieldFilter(f.Fields))
 		case filterTransfer:
 			filters = append(filters, TransferFilter(f.Field, f.Target))
+		case filterTimestamp:
+			filters = append(filters, TimestampFilter(f.Field))
 		}
 	}
 
