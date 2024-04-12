@@ -24,7 +24,7 @@ COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /usr/share/zoneinfo/Asia/S
 ENV TZ Asia/Shanghai
 
 WORKDIR /app
-COPY --from=builder stash /app/stash
+COPY --from=builder scf-stash /app/stash
 COPY --from=builder etc /app/etc
 
-CMD ["./stash", "-f", "etc/config.yaml"]
+CMD ["./scf-stash", "-f", "etc/config.yaml"]
