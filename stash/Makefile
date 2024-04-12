@@ -13,7 +13,7 @@ COMMIT=$(shell git rev-parse --short HEAD)
 DATE:=$(shell date +'%Y%m%d-%H%M%S')
 QCI_ENV_FILE?=release-tag
 
-TAG ?= release-data-update-$(DATE)-$(COMMIT)
+TAG ?= release-init-$(DATE)-$(COMMIT)
 
 build-docker:
 	GOARCH=amd64 GOOS=linux go build -ldflags "-X main.Version=$(version)" -mod=vendor -o $(APP) stash.go
@@ -22,6 +22,6 @@ build-image:build-docker
 	docker build --rm --no-cache -t csighub.tencentyun.com/$(NAMESPACE)/$(APP):$(TAG) .
 
 push-image:build-image
-	docker push csighub.tencentyun.com/$(NAMESPACE)/$(IMG-RegionInvoke):$(TAG)
+	docker push csighub.tencentyun.com/$(NAMESPACE)/$(APP):$(TAG)
 	echo "TKEx_Image_Hub=csighub.tencentyun.com/$(NAMESPACE)/$(IMG-RegionInvoke):$(TAG)" >> ${QCI_ENV_FILE}
 
