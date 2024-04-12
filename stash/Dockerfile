@@ -20,11 +20,12 @@
 FROM centos:7
 
 #COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /usr/share/zoneinfo/Asia/Shanghai
-ENV TZ Asia/Shanghai
+#COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /usr/share/zoneinfo/Asia/Shanghai
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+RUN echo 'Asia/Shanghai' >/etc/timezone
 
 WORKDIR /app
-COPY --from=builder scf-stash /app/stash
-COPY --from=builder etc /app/etc
+COPY scf-stash /app/scf-stash
+COPY etc /app/etc
 
 CMD ["./scf-stash", "-f", "etc/config.yaml"]
