@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"time"
 
@@ -10,13 +11,12 @@ import (
 	"github.com/kevwan/go-stash/stash/handler"
 	"github.com/olivere/elastic/v7"
 	"github.com/zeromicro/go-queue/kq"
-	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/proc"
 	"github.com/zeromicro/go-zero/core/service"
 )
 
-var configFile = flag.String("f", "etc/config.yaml", "Specify the config file")
+//var configFile = flag.String("f", "etc/config.yaml", "Specify the config file")
 
 func toKqConf(c config.KafkaConf) []kq.KqConf {
 	var ret []kq.KqConf
@@ -45,9 +45,12 @@ func main() {
 	flag.Parse()
 
 	var c config.Config
-	conf.MustLoad(*configFile, &c)
+	//conf.MustLoad(*configFile, &c)
+	config.InitConf(&c)
 	proc.SetTimeToForceQuit(c.GracePeriod)
 
+	cs, _ := json.Marshal(c)
+	logx.Infof("read config file succ: %s\n", string(cs))
 	group := service.NewServiceGroup()
 	defer group.Stop()
 

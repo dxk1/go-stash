@@ -3,7 +3,7 @@
 
 # Unignore all with extensions
 !*.*
-!**/Dockerfile
+!stash/Dockerfile_test
 
 # Unignore all dirs
 !*/
