@@ -20,7 +20,7 @@ type (
 	ElasticSearchConf struct {
 		Hosts         []string `yaml:"Hosts"`
 		Index         string   `yaml:"Index"`
-		DocType       string   `json:",default=doc" yaml:"DocType"`
+		DocType       string   `json:",default=doc" yaml:"DocType"` // 注意：在ES 7.x+中已废弃，8.x+中不支持
 		TimeZone      string   `json:",optional" yaml:"TimeZone"`
 		MaxChunkBytes int      `json:",default=15728640" yaml:"MaxChunkBytes"` // default 15M
 		Compress      bool     `json:",default=false" yaml:"Compress"`
@@ -70,15 +70,25 @@ type (
 
 // InitConf ...
 func InitConf(conf *Config) {
-	f, err := ioutil.ReadFile("/usr/local/services/scf_stash/scf_stash.yaml")
+	configPath := "/usr/local/services/scf_stash/scf_stash.yaml"
+	logx.Infof("Loading config file from: %s", configPath)
+
+	f, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		logx.Errorf("read config file failed: %s\n", err)
+		return
 	}
+
+	logx.Infof("Config file loaded, size: %d bytes", len(f))
+	logx.Infof("Config file content: %s", string(f))
 
 	err = yaml.Unmarshal(f, &conf)
 	if err != nil {
 		logx.Errorf("parse config failed: %s\n", err)
+		return
 	}
+
+	logx.Infof("Config parsed successfully")
 
 	if conf.GracePeriod == 0 {
 		conf.GracePeriod = 10 * time.Second
@@ -109,6 +119,12 @@ func InitConf(conf *Config) {
 
 			if c.Output.ElasticSearch.DocType == "" {
 				c.Output.ElasticSearch.DocType = "doc"
+			}
+
+			// 警告：在Elasticsearch 7.x+中，DocType已被废弃，在8.x+中完全不支持
+			// 此设置仅为向后兼容性保留，实际不会生效
+			if c.Output.ElasticSearch.DocType != "" && c.Output.ElasticSearch.DocType != "doc" {
+				logx.Infof("注意: DocType '%s' 在Elasticsearch 7.x+ 中已废弃，将被忽略", c.Output.ElasticSearch.DocType)
 			}
 
 			if c.Output.ElasticSearch.MaxChunkBytes == 0 {

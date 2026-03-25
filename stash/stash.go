@@ -54,30 +54,57 @@ func main() {
 	group := service.NewServiceGroup()
 	defer group.Stop()
 
-	for _, processor := range c.Clusters {
+	for i, processor := range c.Clusters {
+		logx.Infof("Setting up cluster %d with ES hosts: %v", i+1, processor.Output.ElasticSearch.Hosts)
+
 		client, err := elastic.NewClient(
 			elastic.SetSniff(false),
 			elastic.SetURL(processor.Output.ElasticSearch.Hosts...),
 			elastic.SetBasicAuth(processor.Output.ElasticSearch.Username, processor.Output.ElasticSearch.Password),
 		)
-		logx.Must(err)
+		if err != nil {
+			logx.Errorf("Failed to create ES client: %v", err)
+			logx.Must(err)
+		}
+		logx.Infof("ES client created successfully")
 
+		logx.Infof("Creating filters for cluster %d", i+1)
 		filters := filter.CreateFilters(processor)
+		logx.Infof("Created %d filters", len(filters))
+
+		logx.Infof("Creating ES writer...")
 		writer, err := es.NewWriter(processor.Output.ElasticSearch)
-		logx.Must(err)
+		if err != nil {
+			logx.Errorf("Failed to create ES writer: %v", err)
+			logx.Must(err)
+		}
+		logx.Infof("ES writer created successfully")
 
 		var loc *time.Location
 		if len(processor.Output.ElasticSearch.TimeZone) > 0 {
+			logx.Infof("Using timezone: %s", processor.Output.ElasticSearch.TimeZone)
 			loc, err = time.LoadLocation(processor.Output.ElasticSearch.TimeZone)
-			logx.Must(err)
+			if err != nil {
+				logx.Errorf("Failed to load timezone: %v", err)
+				logx.Must(err)
+			}
 		} else {
+			logx.Info("Using local timezone")
 			loc = time.Local
 		}
+
+		logx.Infof("Creating ES indexer with pattern: %s", processor.Output.ElasticSearch.Index)
 		indexer := es.NewIndex(client, processor.Output.ElasticSearch.Index, loc)
+
+		logx.Info("Creating message handler and adding filters...")
 		handle := handler.NewHandler(writer, indexer)
 		handle.AddFilters(filters...)
 		handle.AddFilters(filter.AddUriFieldFilter("url", "uri"))
-		for _, k := range toKqConf(processor.Input.Kafka) {
+
+		kafkaConfigs := toKqConf(processor.Input.Kafka)
+		logx.Infof("Setting up %d Kafka consumers", len(kafkaConfigs))
+		for j, k := range kafkaConfigs {
+			logx.Infof("Adding Kafka consumer %d: topic=%s, group=%s", j+1, k.Topic, k.Group)
 			group.Add(kq.MustNewQueue(k, handle))
 		}
 	}

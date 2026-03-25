@@ -37,5 +37,12 @@ func CreateFilters(p config.Cluster) []FilterFunc {
 		}
 	}
 
+	// 添加专门处理created_at字段的filter
+	filters = append(filters, CreatedAtTimestampFilter())
+
+	// 在所有filters的最后添加EnsureTimestampFilter作为最后的保险
+	// 确保@timestamp字段总是存在，如果前面的filters没有设置的话
+	filters = append(filters, EnsureTimestampFilter())
+
 	return filters
 }

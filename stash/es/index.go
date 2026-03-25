@@ -138,10 +138,43 @@ func formatTime(format string, t time.Time) string {
 
 func getTime(m map[string]interface{}) time.Time {
 	if ti, ok := m[timestampKey]; ok {
+		// 尝试解析字符串格式的时间戳
 		if ts, ok := ti.(string); ok {
-			if t, err := time.Parse(timestampFormat, ts); err == nil {
-				return t
+			// 支持多种时间格式
+			formats := []string{
+				timestampFormat,        // "2006-01-02T15:04:05.000Z"
+				"2006-01-02T15:04:05Z", // 不带毫秒
+				"2006-01-02 15:04:05",  // 简单格式
+				time.RFC3339,           // RFC3339格式
+				time.RFC3339Nano,       // RFC3339Nano格式
 			}
+
+			for _, format := range formats {
+				if t, err := time.Parse(format, ts); err == nil {
+					return t
+				}
+			}
+		}
+
+		// 尝试解析time.Time对象（从@timestamp_obj字段）
+		if timeObj, ok := ti.(time.Time); ok {
+			return timeObj
+		}
+
+		// 尝试解析Unix时间戳
+		if timestamp, ok := ti.(float64); ok {
+			return time.Unix(int64(timestamp), 0)
+		}
+
+		if timestamp, ok := ti.(int64); ok {
+			return time.Unix(timestamp, 0)
+		}
+	}
+
+	// 如果有@timestamp_obj字段，优先使用它
+	if timeObj, ok := m["@timestamp_obj"]; ok {
+		if t, ok := timeObj.(time.Time); ok {
+			return t
 		}
 	}
 

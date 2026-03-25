@@ -9,8 +9,11 @@ Clusters:
       Group: go_stash_core
       Consumers: 48
   Filters:
+    # timestamp filter: 将指定字段的时间戳转换为@timestamp字段
+    # 根据实际数据，使用created_at字段作为时间戳源
     - Action: timestamp
-      Field: Timestamp
+      Field: created_at  # 源时间戳字段名，支持 float64(Unix秒)、int64(Unix秒)、string(多种格式)
+    # 注意：即使不配置timestamp filter，系统也会自动确保每条记录都有@timestamp字段
   Output:
     ElasticSearch:
       Username: xxx
@@ -18,3 +21,6 @@ Clusters:
       Hosts:
         - http://9.139.3.6:xx
       Index: "core_monitor_metrics-{{YYYYMMdd.HH}}"
+      # 注意：DocType 在 Elasticsearch 7.x+ 中已废弃，8.x+ 中不支持
+      # 如果您使用 ES 7.x+，请不要设置 DocType 字段
+      # DocType: "doc"  # 仅在 ES 6.x 及以下版本中需要
