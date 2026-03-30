@@ -1,24 +1,37 @@
 package handler
 
 import (
+	"fmt"
+	"os"
+	"sync/atomic"
+	"time"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/kevwan/go-stash/stash/es"
 	"github.com/kevwan/go-stash/stash/filter"
 	"github.com/zeromicro/go-zero/core/logx"
-	"time"
 )
 
 type MessageHandler struct {
-	writer  *es.Writer
-	indexer *es.Index
-	filters []filter.FilterFunc
+	writer         *es.Writer
+	indexer        *es.Index
+	filters        []filter.FilterFunc
+	processedCount int64     // 成功处理的消息数量
+	errorCount     int64     // 错误处理的消息数量
+	startTime      time.Time // 启动时间
 }
 
 func NewHandler(writer *es.Writer, indexer *es.Index) *MessageHandler {
-	return &MessageHandler{
-		writer:  writer,
-		indexer: indexer,
+	handler := &MessageHandler{
+		writer:    writer,
+		indexer:   indexer,
+		startTime: time.Now(),
 	}
+
+	// 启动统计输出协程
+	go handler.startStatsReporter()
+
+	return handler
 }
 
 func (mh *MessageHandler) AddFilters(filters ...filter.FilterFunc) {
@@ -27,11 +40,17 @@ func (mh *MessageHandler) AddFilters(filters ...filter.FilterFunc) {
 	}
 }
 
-func (mh *MessageHandler) Consume(_, val string) error {
-	logx.Infof("Processing message: %s", val[:min(len(val), 200)]) // 记录处理的消息（截取前200字符）
+func (mh *MessageHandler) Consume(key, val string) error {
+	// 双重日志确保能看到消费记录
+	consumeMsg := fmt.Sprintf("✅ KAFKA CONSUMED - Key: %s, Size: %d bytes", key, len(val))
+	fmt.Printf("%s\n", consumeMsg)
+	logx.Infof("Processing message: key=%s, size=%d, data=%s", key, len(val), val[:min(len(val), 200)])
 
 	var m map[string]interface{}
 	if err := jsoniter.Unmarshal([]byte(val), &m); err != nil {
+		atomic.AddInt64(&mh.errorCount, 1)
+		errorMsg := fmt.Sprintf("❌ ERROR - Failed to unmarshal JSON: %v", err)
+		fmt.Fprintf(os.Stderr, "%s\n", errorMsg)
 		logx.Errorf("Failed to unmarshal JSON: %v, data: %s", err, val[:min(len(val), 100)])
 		return err
 	}
@@ -51,6 +70,9 @@ func (mh *MessageHandler) Consume(_, val string) error {
 
 	bs, err := jsoniter.Marshal(m)
 	if err != nil {
+		atomic.AddInt64(&mh.errorCount, 1)
+		errorMsg := fmt.Sprintf("❌ ERROR - Failed to marshal processed data: %v", err)
+		fmt.Fprintf(os.Stderr, "%s\n", errorMsg)
 		logx.Errorf("Failed to marshal processed data: %v", err)
 		return err
 	}
@@ -59,10 +81,22 @@ func (mh *MessageHandler) Consume(_, val string) error {
 	logx.Infof("Writing to ES index: %s, data: %s", index, string(bs)[:min(len(bs), 200)])
 
 	if err := mh.writer.Write(index, string(bs)); err != nil {
+		atomic.AddInt64(&mh.errorCount, 1)
+		// 双重错误输出，确保能看到
+		errorMsg := fmt.Sprintf("❌ CRITICAL: Failed to write to Elasticsearch: %v, index: %s (Total errors: %d)",
+			err, index, atomic.LoadInt64(&mh.errorCount))
+		fmt.Fprintf(os.Stderr, "%s\n", errorMsg)
 		logx.Errorf("Failed to write to Elasticsearch: %v, index: %s, data: %s", err, index, string(bs)[:min(len(bs), 200)])
 		return err
 	}
 
+	// 增加成功计数
+	atomic.AddInt64(&mh.processedCount, 1)
+
+	// 双重成功日志确保能看到
+	successMsg := fmt.Sprintf("✅ SUCCESS - Kafka message processed and written to ES: index=%s (Total: %d)",
+		index, atomic.LoadInt64(&mh.processedCount))
+	fmt.Printf("%s\n", successMsg)
 	logx.Info("Successfully written to Elasticsearch")
 	return nil
 }
@@ -152,4 +186,47 @@ func (mh *MessageHandler) ensureTimestamp(m map[string]interface{}) {
 
 	m[timestampKey] = formattedTimestamp
 	logx.Infof("Set @timestamp to: %s", formattedTimestamp)
+}
+
+// startStatsReporter 启动统计报告协程
+func (mh *MessageHandler) startStatsReporter() {
+	ticker := time.NewTicker(30 * time.Second) // 每30秒报告一次统计信息
+	defer ticker.Stop()
+
+	// 立即更新健康检查文件
+	mh.updateHealthCheck()
+
+	for range ticker.C {
+		processed := atomic.LoadInt64(&mh.processedCount)
+		errors := atomic.LoadInt64(&mh.errorCount)
+		uptime := time.Since(mh.startTime)
+
+		rate := float64(0)
+		if uptime.Seconds() > 0 {
+			rate = float64(processed) / uptime.Seconds()
+		}
+
+		statsMsg := fmt.Sprintf("📊 KAFKA CONSUME STATS - Processed: %d, Errors: %d, Rate: %.2f msg/s, Uptime: %v",
+			processed, errors, rate, uptime.Truncate(time.Second))
+
+		fmt.Printf("%s\n", statsMsg)
+		logx.Infof("Handler stats - Processed: %d, Errors: %d, Rate: %.2f msg/s, Uptime: %v",
+			processed, errors, rate, uptime.Truncate(time.Second))
+
+		// 更新健康检查文件
+		mh.updateHealthCheck()
+	}
+}
+
+// updateHealthCheck 更新健康检查文件
+func (mh *MessageHandler) updateHealthCheck() {
+	healthFile := "/tmp/go-stash-health"
+	processed := atomic.LoadInt64(&mh.processedCount)
+	errors := atomic.LoadInt64(&mh.errorCount)
+
+	healthData := fmt.Sprintf("processed=%d,errors=%d,timestamp=%d",
+		processed, errors, time.Now().Unix())
+
+	// 忽略错误，健康检查是非关键功能
+	_ = os.WriteFile(healthFile, []byte(healthData), 0644)
 }

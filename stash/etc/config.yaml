@@ -2,6 +2,12 @@ Clusters:
 - Input:
     Kafka:
       Name: gostash
+      Log:
+        ServiceName: go-stash
+        Mode: console  # console | file | volume
+        Level: info    # info | error | severe
+        Compress: false
+        # Path: logs    # 如果使用 file 模式，指定日志文件路径
       Brokers:
         - "1xxx:xxx"
       Topics:

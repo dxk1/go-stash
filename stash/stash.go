@@ -109,5 +109,12 @@ func main() {
 		}
 	}
 
+	fmt.Println("🚀 go-stash is starting all services...")
+	logx.Info("All Kafka consumers and ES writers configured, starting services...")
+
+	// 启动服务
 	group.Start()
+
+	fmt.Println("✅ go-stash started successfully and consuming Kafka messages")
+	logx.Info("go-stash service started successfully")
 }
